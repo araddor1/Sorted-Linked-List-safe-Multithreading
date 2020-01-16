@@ -16,6 +16,7 @@ class List
          */
         List():size(0) { 
           pthread_mutex_init(&list_mutex,NULL);
+          pthread_mutex_init(&size_mutex,NULL);
           head=nullptr;
          }
 
@@ -31,6 +32,8 @@ class List
             curr=temp->next;
           }
           pthread_mutex_destroy(&list_mutex);
+          pthread_mutex_destroy(&size_mutex);
+
         }
 
         class Node {
@@ -53,51 +56,96 @@ class List
          * @return true if a new node was added and false otherwise
          */
         bool insert(const T& data) {
-          Node* new_n=new Node(data);
-          // if list is empty / new data is the smallest
-          if (head == nullptr || data < head->data ){
-            pthread_mutex_lock(&(head->node_mutex));
-            new_n->next = head;
-            head = new_n;
-            size++;
-            __add_hook(); 
-             pthread_mutex_unlock(&(head->node_mutex));
-            return true;
-          }
           
-          Node* prev = head;
-          pthread_mutex_lock(&(prev->node_mutex));
-          if (head->next == nullptr && head->data == data){
-                pthread_mutex_unlock(&(prev->node_mutex));
-                  return false;
-          }
-          Node* curr = head->next;
-          pthread_mutex_lock(&(curr->node_mutex));
+          
+           pthread_mutex_lock(&(list_mutex));
 
-          while (curr !=nullptr &&   curr->data < data){
-            pthread_mutex_unlock(&(prev->node_mutex));  
-            prev = curr;
-              if (curr->next == nullptr){
-                curr =curr->next;
-                break;
+           // if list is empty 
+           if (head ==0){
+              head = new Node(data);
+              pthread_mutex_lock(&(size_mutex));
+              size++;
+              pthread_mutex_unlock(&(size_mutex));
+              __add_hook(); 
+              pthread_mutex_unlock(&(list_mutex));
+              return true;
+           }
+
+           // if list not empty 
+            pthread_mutex_lock(&(head->node_mutex));
+            
+            Node* prev=head;
+            Node* curr=head->next;
+
+            // if head is only node | new data is before head
+            if (curr == 0 || head->data >= data){
+                if (head->data > data){
+                  head =  new Node(data);
+                  head->next = curr;
+                  pthread_mutex_lock(&(size_mutex));
+                  size++;
+                  pthread_mutex_unlock(&(size_mutex));
+                  __add_hook(); 
+                  pthread_mutex_unlock(&(prev->node_mutex));
+                  pthread_mutex_unlock(&(list_mutex));
+                  return true;
               }
-            curr =curr->next;
-            pthread_mutex_lock(&(curr->node_mutex)); 
-          }
+              if (head->data == data){
+                __add_hook(); 
+                pthread_mutex_unlock(&(prev->node_mutex));
+                pthread_mutex_unlock(&(list_mutex));
+                return false;
+              }
+              if (head->data < data){
+                head->next =  new Node(data);
+                pthread_mutex_lock(&(size_mutex));
+                size++;
+                pthread_mutex_unlock(&(size_mutex));
+                __add_hook(); 
+                pthread_mutex_unlock(&(prev->node_mutex));
+                pthread_mutex_unlock(&(list_mutex));
+                return true; 
+              }
+            }
+            pthread_mutex_unlock(&(list_mutex));
 
-          if (curr != nullptr && (curr->data == data || prev->data == data) ){
-            pthread_mutex_unlock(&(curr->node_mutex));
-            pthread_mutex_unlock(&(prev->node_mutex));  
-            return false;
-          }
-          prev->next =new_n;
-          new_n->next = curr;
-          size++; 
-          __add_hook();
-          pthread_mutex_unlock(&(curr->node_mutex));
-          pthread_mutex_unlock(&(prev->node_mutex));  
-          return true;   
-        }
+            // traveling the list
+            while(curr!=0){
+                  pthread_mutex_lock(&(curr->node_mutex));
+                     // if new data is already in 
+                    if (curr->data ==data){
+                      __add_hook();
+                      pthread_mutex_unlock(&(curr->node_mutex));
+                      pthread_mutex_unlock(&(prev->node_mutex));
+                      return false;
+                    }
+                    // if  new data is smaller then curr and greater than prev 
+                    if (curr->data > data){
+                      prev->next = new Node(data);
+                      prev->next->next = curr;
+                      pthread_mutex_lock(&(size_mutex));
+                      size++;
+                      pthread_mutex_unlock(&(size_mutex));
+                      __add_hook(); 
+                      pthread_mutex_unlock(&(curr->node_mutex));
+                      pthread_mutex_unlock(&(prev->node_mutex));
+                      return true;
+                    }
+                    pthread_mutex_unlock(&(prev->node_mutex));
+                    prev=curr;
+                    curr=curr->next;
+            }
+
+            // if  new data is the largest
+                prev->next = new Node(data);
+                prev->next->next = nullptr;
+                pthread_mutex_lock(&(size_mutex));
+                size++;
+                pthread_mutex_unlock(&(size_mutex));
+                __add_hook(); 
+                pthread_mutex_unlock(&(prev->node_mutex));
+                return true;
+          } 
 
         /**
          * Remove the node that its data equals to @param value
@@ -105,28 +153,53 @@ class List
          * @return true if a matched node was found and removed and false otherwise
          */
         bool remove(const T& value) {
-          Node* prev = head;
-          pthread_mutex_lock(&(prev->node_mutex));
+          pthread_mutex_lock(&(list_mutex));
+           
+           // if  list empty
+          if (head == 0){
+              pthread_mutex_unlock(&(list_mutex));
+               __remove_hook();
+              return false;
+          }
+          pthread_mutex_lock(&(head->node_mutex));
+          Node* prev = head;     
           Node* curr = head->next;
-          pthread_mutex_lock(&(curr->node_mutex));
 
-          while (curr->next != nullptr && curr->data <= value){
-              if (curr->data == value){
-                prev->next = curr->next;
-                size--;
-                pthread_mutex_unlock(&(curr->node_mutex));
-                pthread_mutex_unlock(&(prev->node_mutex)); 
-                delete curr;
-                __remove_hook();
-                return true;
-            }
+          // if  head need to be deleted
+          if (head->data == value ){
+             pthread_mutex_unlock(&(prev->node_mutex));
+              head = curr;
+              delete prev;
+              pthread_mutex_lock(&(size_mutex));
+              size--;
+              pthread_mutex_unlock(&(size_mutex));
+              pthread_mutex_unlock(&(list_mutex));
+            __remove_hook();
+            return true;
+          }
+          pthread_mutex_unlock(&(list_mutex));
+
+          // traveling the list
+          while (curr != 0){
+                   pthread_mutex_lock(&(curr->node_mutex));
+                if (curr->data == value){
+                    prev->next = curr->next;
+                  pthread_mutex_lock(&(size_mutex));
+                  size--;
+                  pthread_mutex_unlock(&(size_mutex));
+                    __remove_hook();
+                    pthread_mutex_unlock(&(curr->node_mutex));
+                    delete curr;
+                    pthread_mutex_unlock(&(prev->node_mutex)); 
+                    return true;
+                }
             pthread_mutex_unlock(&(prev->node_mutex));  
             prev = curr;
             curr =curr->next;
-            pthread_mutex_lock(&(curr->node_mutex)); 
+             
           }
-        pthread_mutex_unlock(&(curr->node_mutex));
-        pthread_mutex_unlock(&(prev->node_mutex)); 
+        if (curr !=0 )pthread_mutex_unlock(&(curr->node_mutex));
+        if (prev !=0 ) pthread_mutex_unlock(&(prev->node_mutex)); 
         return false;
         }
 
@@ -137,6 +210,33 @@ class List
         unsigned int getSize() {
           return size;
         }
+
+  bool isSorted(){
+        pthread_mutex_lock(&list_mutex);
+        if(!head) {
+            pthread_mutex_unlock(&list_mutex);
+            return true;
+        }else{
+            pthread_mutex_lock(&head->node_mutex);
+            pthread_mutex_unlock(&list_mutex);
+        }
+        Node* prev = head;
+        Node* curr = head->next;
+        while(curr) {
+            pthread_mutex_lock(&curr->node_mutex);
+            if(prev->data >= curr->data) {
+                pthread_mutex_unlock(&curr->node_mutex);
+                pthread_mutex_unlock(&prev->node_mutex);
+                return false;
+            }
+            pthread_mutex_unlock(&prev->node_mutex);
+            prev = curr;
+            curr = curr->next;
+        }
+        pthread_mutex_unlock(&prev->node_mutex);
+        return true;
+    }
+
 
 		// Don't remove
         void print() {
@@ -171,6 +271,7 @@ class List
     private:
         Node* head;
         int size;
+        pthread_mutex_t size_mutex;
         pthread_mutex_t list_mutex;
 
 };

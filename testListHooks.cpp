@@ -20,7 +20,6 @@ class MyList : public List<T> {
   }
   void setValueToRemove(int val) {
     val_to_remove = val;
-    
   }
  private:
   bool hook_enabled = false;
@@ -29,12 +28,11 @@ class MyList : public List<T> {
 
 int main() {
   List<int>* l = new MyList<int>();
-  int arr[]= {100,5,5,4,0,100,5,-15,30};
-  for (int i=0; i<9; i++) {
-    l->insert(arr[i]);
+  for (int i=0; i<20; i+=2) {
+    l->insert(i);
   }
   l->print(); // should print: 0,2,4,6,8,10,12,14,16,18
- 
+  assert(l->getSize() == 10);
 
   // the node to be removed should be a pred of the one being inserted
   // because hand locks are already acquired on the inserted node
@@ -44,8 +42,7 @@ int main() {
   ((MyList<int>*)l)->setValueToRemove(6);
   l->insert(11);
 
-  
+  assert(l->getSize() == 10);
   l->print(); // should print: 0,2,4,8,11,12,14,16,17,18
   return 0;
-
-} 
+}

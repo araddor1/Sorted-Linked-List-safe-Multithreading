@@ -4,8 +4,8 @@
 #include <cassert>
 #include <fstream>
 
-#define TEST_NUM 100
-#define MAX_ACTIONS 50
+#define TEST_NUM 20
+#define MAX_ACTIONS 40
 #define NUM_RANGE 100
 
 //      Don't change those      vvv

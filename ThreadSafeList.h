@@ -31,7 +31,6 @@ class List
             curr=next;;
           }
           pthread_mutex_destroy(&list_mutex);
-
         }
 
         class Node {
@@ -145,7 +144,7 @@ class List
           pthread_mutex_lock(&(head->node_mutex));
           Node* prev = head;     
           Node* curr = head->next;
-
+          
           // if  head need to be deleted
           if (head->data == value ){
              pthread_mutex_unlock(&(prev->node_mutex));
@@ -162,9 +161,9 @@ class List
                    pthread_mutex_lock(&(curr->node_mutex));
                 if (curr->data == value){
                     prev->next = curr->next;
-                    __remove_hook();
                     pthread_mutex_unlock(&(curr->node_mutex));
                     delete curr;
+                     __remove_hook();
                     pthread_mutex_unlock(&(prev->node_mutex)); 
                     return true;
                 }
@@ -194,32 +193,6 @@ class List
           pthread_mutex_unlock(&(list_mutex));
           return num;
         }
-
-  bool isSorted(){
-        pthread_mutex_lock(&list_mutex);
-        if(!head) {
-            pthread_mutex_unlock(&list_mutex);
-            return true;
-        }else{
-            pthread_mutex_lock(&head->node_mutex);
-            pthread_mutex_unlock(&list_mutex);
-        }
-        Node* prev = head;
-        Node* curr = head->next;
-        while(curr) {
-            pthread_mutex_lock(&curr->node_mutex);
-            if(prev->data >= curr->data) {
-                pthread_mutex_unlock(&curr->node_mutex);
-                pthread_mutex_unlock(&prev->node_mutex);
-                return false;
-            }
-            pthread_mutex_unlock(&prev->node_mutex);
-            prev = curr;
-            curr = curr->next;
-        }
-        pthread_mutex_unlock(&prev->node_mutex);
-        return true;
-    }
 
 
 		// Don't remove
